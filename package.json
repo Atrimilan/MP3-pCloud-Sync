@@ -1,0 +1,12 @@
+{
+  "name": "mp3-backup-cron",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node app/backup_sync.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.6.1",
+    "formdata-node": "^6.0.3"
+  }
+}

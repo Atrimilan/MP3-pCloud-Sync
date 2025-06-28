@@ -1,4 +1,10 @@
+# Node modules
 node_modules/
-.env
 package-lock.json
+
+# File paths
 app/backup_paths.json
+
+# Secrets and tokens
+.env
+auth_token.txt

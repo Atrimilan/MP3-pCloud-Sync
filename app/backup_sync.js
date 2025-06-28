@@ -1,8 +1,8 @@
+import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import dotenv from 'dotenv';
-import { login, createFolder, listFolder, uploadFile } from './pcloud_service.js';
+import { createFolder, listFolder, login, uploadFileWithProgress } from './pcloud_service.js';
 
 dotenv.config();
 
@@ -18,9 +18,9 @@ function logErrorAndExit(message) {
 
 /* First check if the .env file exists */
 
-const { PCLOUD_USERNAME, PCLOUD_PASSWORD, PCLOUD_API, LOCAL_DIRECTORY } = process.env;
+const { PCLOUD_USERNAME, PCLOUD_PASSWORD, PCLOUD_API } = process.env;
 
-if (!PCLOUD_USERNAME || !PCLOUD_PASSWORD || !PCLOUD_API || !LOCAL_DIRECTORY) {
+if (!PCLOUD_USERNAME || !PCLOUD_PASSWORD || !PCLOUD_API) {
     logErrorAndExit('Missing required environment variables in .env file');
 }
 
@@ -61,8 +61,16 @@ for (const backupPath of backupPaths) {
 
 (async () => {
     try {
-        // Authentication
-        const auth = await login(PCLOUD_USERNAME, PCLOUD_PASSWORD);
+        // Authentication if needed
+        const authFilePath = path.join(__dirname, 'auth_token.txt');
+        let auth;
+        if (fs.existsSync(authFilePath)) {
+            auth = fs.readFileSync(authFilePath, 'utf-8').trim();
+        } else {
+            auth = await login(PCLOUD_USERNAME, PCLOUD_PASSWORD);
+            fs.writeFileSync(authFilePath, auth, 'utf-8'); // Save the auth token for future use
+            console.log('Authentication token has been saved to auth_token.txt');
+        }
 
         // List remote folders on pCloud
         const remoteFolders = (await listFolder(auth, 0))
@@ -92,7 +100,12 @@ for (const backupPath of backupPaths) {
             }
 
             const newFilename = `backup_${folderName.toLocaleLowerCase()}.zip`; // Define a new filename
-            await uploadFile(auth, zipFilePath, remoteFolder.id, newFilename);
+            await uploadFileWithProgress(auth, zipFilePath, remoteFolder.id, newFilename, (percent, loadedMB, totalMB) => {
+                 console.log(`Backup ${folderName} : ${percent}% (${loadedMB}/${totalMB} MB)`);
+                 if (percent === 100) {
+                     console.log("Waiting for server confirmation, please don't close the application...");
+                 }
+            });
             console.log(`File uploaded to pCloud: ${zipFilePath} in folder ${folderName}`);
         }
 

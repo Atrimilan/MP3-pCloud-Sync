@@ -1,5 +1,7 @@
-import { fileFromPath } from 'formdata-node/file-from-path';
+import axios from 'axios';
 import dotenv from 'dotenv';
+import { fileFromPath } from 'formdata-node/file-from-path';
+import fs from 'fs';
 
 dotenv.config();
 
@@ -83,12 +85,13 @@ export async function createFolder(auth, name, folderid = 0) {
  * Upload a file to pCloud
  * 
  * @param {*} auth Authentication token
- * @param {*} folderid Parent folder ID
  * @param {*} filePath Path to the file to upload
+ * @param {*} folderid Parent folder ID
  * @param {*} newFilename Optional new filename for the uploaded file
+ * @param {*} onProgress Callback function to track upload progress
  * @returns 
  */
-export async function uploadFile(auth, filePath, folderid, newFilename = null) {
+export async function uploadFileWithProgress(auth, filePath, folderid, newFilename = null, onProgress = null) {
     const form = new FormData();
     form.append('auth', auth);
     form.append('folderid', folderid);
@@ -98,16 +101,25 @@ export async function uploadFile(auth, filePath, folderid, newFilename = null) {
         form.append('file', await fileFromPath(filePath));
     }
 
-    const response = await fetch(`${PCLOUD_API}/uploadfile`, {
-        method: 'POST',
-        body: form
-        // Content-Type multipart/form-data is automatically set
-    });
+    const fileSize = fs.statSync(filePath).size;
+    const response = await axios.post(`${PCLOUD_API}/uploadfile`, form,
+        {
+            maxContentLength: Infinity,
+            maxBodyLength: Infinity,
+            onUploadProgress: progressEvent => {
+                if (onProgress) {
+                    const percent = Math.round((progressEvent.loaded * 100) / fileSize); // Percentage of upload completion
+                    const loadedMB = Math.round(progressEvent.loaded / (1024 * 1024)); // Loaded file size in MB
+                    const totalMB = Math.round(fileSize / (1024 * 1024)); // Total file size in MB
+                    onProgress(percent, loadedMB, totalMB);
+                }
+            }
+        }
+    );
 
-    const data = await response.json();
-    if (!data.metadata) {
-        throw new Error('Upload error: ' + (data.error || 'Unknown error'));
+    if (!response.data.metadata) {
+        throw new Error('Upload error: ' + (response.data.error || 'Unknown error'));
     }
 
-    return data.metadata;
+    return response.data.metadata;
 }

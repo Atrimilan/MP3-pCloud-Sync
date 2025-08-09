@@ -9,7 +9,7 @@ const PCLOUD_API = process.env.PCLOUD_API || 'https://eapi.pcloud.com'; // Europ
 const FORM_URL_ENCODED_HEADERS = { 'Content-Type': 'application/x-www-form-urlencoded' };
 
 /**
- * Authenticate to pCloud
+ * Authenticate to pCloud. **See README.md for more information about the first login process.**
  * 
  * @param {*} username
  * @param {*} password
@@ -26,6 +26,13 @@ export async function login(username, password) {
 
     const data = await response.json();
     if (!data.auth) {
+        if (data.error === 'Please provide \'code\'.') {
+            throw new Error(
+                'When running this script for the first time, you must log in to your browser at the following address: https://my.pcloud.com/, and complete the two-factor authentication process. ' +
+                'This ensures that pCloud recognizes your IP address when running the script. ' +
+                'Subsequent runs of the script will use a non-expiring token, avoiding the need to log in manually.'
+            );
+        }
         throw new Error('Authentication failed: ' + (data.error || 'Unknown error'));
     }
 

@@ -1,12 +1,19 @@
 import axios from 'axios';
 import dotenv from 'dotenv';
-import { fileFromPath } from 'formdata-node/file-from-path';
+import FormData from "form-data";
 import fs from 'fs';
+import https from 'https';
 
 dotenv.config();
 
 const PCLOUD_API = process.env.PCLOUD_API || 'https://eapi.pcloud.com'; // European API by default
 const FORM_URL_ENCODED_HEADERS = { 'Content-Type': 'application/x-www-form-urlencoded' };
+
+const httpsAgent = new https.Agent({
+    keepAlive: true,
+    keepAliveMsecs: 10000, // Ping every 10 seconds to keep the connection alive
+    timeout: 0
+});
 
 /**
  * Authenticate to pCloud. **See README.md for more information about the first login process.**
@@ -100,19 +107,25 @@ export async function createFolder(auth, name, folderid = 0) {
  */
 export async function uploadFileWithProgress(auth, filePath, folderid, newFilename = null, onProgress = null) {
     const form = new FormData();
+
     form.append('auth', auth);
     form.append('folderid', folderid);
+
+    const stream = fs.createReadStream(filePath);
+    const fileSize = fs.statSync(filePath).size;
+
     if (newFilename) {
-        form.append('file', await fileFromPath(filePath), newFilename);
+        form.append('file', stream, { filename: newFilename, knownLength: fileSize });
     } else {
-        form.append('file', await fileFromPath(filePath));
+        form.append('file', stream, { knownLength: fileSize });
     }
 
-    const fileSize = fs.statSync(filePath).size;
     const response = await axios.post(`${PCLOUD_API}/uploadfile`, form,
         {
             maxContentLength: Infinity,
             maxBodyLength: Infinity,
+            timeout: 0,
+            httpsAgent,
             onUploadProgress: progressEvent => {
                 if (onProgress) {
                     const percent = Math.round((progressEvent.loaded * 100) / fileSize); // Percentage of upload completion

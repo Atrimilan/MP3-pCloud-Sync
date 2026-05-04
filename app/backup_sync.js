@@ -89,6 +89,8 @@ for (const backupPath of backupPaths) {
             }
         }
 
+        let failedUploads = 0;
+
         // Upload files to remote folders
         for (const folder of localFolders) {
             const folderName = folder.name;
@@ -100,17 +102,34 @@ for (const backupPath of backupPaths) {
             }
 
             const newFilename = `backup_${folderName.toLocaleLowerCase()}.zip`; // Define a new filename
-            await uploadFileWithProgress(auth, zipFilePath, remoteFolder.id, newFilename, (percent, loadedMB, totalMB) => {
-                 console.log(`Backup ${folderName} : ${percent}% (${loadedMB}/${totalMB} MB)`);
-                 if (percent === 100) {
-                     console.log("Waiting for server confirmation, please don't close the application...");
-                 }
-            });
-            console.log(`File uploaded to pCloud: ${zipFilePath} in folder ${folderName}`);
+
+            let success = false;
+
+            for (let attempt = 1; attempt <= 3 && !success; attempt++) {
+                try {
+                    await uploadFileWithProgress(auth, zipFilePath, remoteFolder.id, newFilename, (percent, loadedMB, totalMB) => {
+                        console.log(`Backup ${folderName} : ${percent}% (${loadedMB}/${totalMB} MB)`);
+                        if (percent === 100) {
+                            console.log("Waiting for server confirmation, please don't close the application...");
+                        }
+                    });
+                    console.log(`File uploaded to pCloud: ${zipFilePath} in folder ${folderName}`);
+                    success = true;
+
+                } catch (err) {
+                    console.error(`Error: Failed to upload file ${zipFilePath} to pCloud: ${err.message}`);
+                    if (attempt < 3)
+                        console.warn(`Retrying upload (attempt ${attempt + 1} of 3)...`);
+                    else failedUploads++;
+                }
+            }
         }
 
-        // Applause
-        console.log('Backup synchronization completed successfully.');
+        // Applause (or not?)
+        if (failedUploads > 0)
+            console.warn(`Backup synchronization completed with ${failedUploads} failed uploads. Please check the logs for details.`);
+        else
+            console.log('Backup synchronization completed successfully.');
 
     } catch (err) {
         console.error(err);

@@ -104,8 +104,9 @@ for (const backupPath of backupPaths) {
             const newFilename = `backup_${folderName.toLocaleLowerCase()}.zip`; // Define a new filename
 
             let success = false;
+            const MAX_ATTEMPTS = 10;
 
-            for (let attempt = 1; attempt <= 3 && !success; attempt++) {
+            for (let attempt = 1; attempt <= MAX_ATTEMPTS && !success; attempt++) {
                 try {
                     await uploadFileWithProgress(auth, zipFilePath, remoteFolder.id, newFilename, (percent, loadedMB, totalMB) => {
                         console.log(`Backup ${folderName} : ${percent}% (${loadedMB}/${totalMB} MB)`);
@@ -118,8 +119,8 @@ for (const backupPath of backupPaths) {
 
                 } catch (err) {
                     console.error(`Error: Failed to upload file ${zipFilePath} to pCloud: ${err.message}`);
-                    if (attempt < 3)
-                        console.warn(`Retrying upload (attempt ${attempt + 1} of 3)...`);
+                    if (attempt < MAX_ATTEMPTS)
+                        console.warn(`Retrying upload (attempt ${attempt + 1} of ${MAX_ATTEMPTS})...`);
                     else failedUploads++;
                 }
             }
